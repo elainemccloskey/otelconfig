@@ -1,0 +1,91 @@
+---
+mode: daemonset
+image:
+  repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
+clusterRole:
+  create: true
+  rules:
+    - apiGroups:
+        - ""
+      resources:
+        - nodes/proxy
+      verbs:
+        - get
+extraEnvs:
+  - name: HONEYCOMB_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: honeycomb
+        key: api-key
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+    extractAllPodAnnotations: true
+  kubeletMetrics:
+    enabled: true
+config:
+  receivers:
+    jaeger: null
+    zipkin: null
+    kubeletstats:
+      insecure_skip_verify: true
+      collection_interval: 30s
+      metric_groups:
+        - node
+        - pod
+      metrics:
+        k8s.node.uptime:
+          enabled: true
+        k8s.pod.uptime:
+          enabled: true
+        k8s.pod.cpu_limit_utilization:
+          enabled: true
+        k8s.pod.cpu_request_utilization:
+          enabled: true
+        k8s.pod.memory_limit_utilization:
+          enabled: true
+        k8s.pod.memory_request_utilization:
+          enabled: true
+  processors:
+    batch:
+      metadata_keys:
+        - k8s.pod.uid
+      metadata_cardinality_limit: 30
+  exporters:
+    otlp:
+      endpoint: api.honeycomb.io:443
+      headers:
+        x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
+    otlp/k8s-metrics:
+      endpoint: api.honeycomb.io:443
+      headers:
+        x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
+        x-honeycomb-dataset: k8s-metrics
+    otlp/k8s-logs:
+      endpoint: api.honeycomb.io:443
+      headers:
+        x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
+        x-honeycomb-dataset: k8s-logs
+  service:
+    pipelines:
+      traces:
+        receivers:
+          - otlp
+        exporters:
+          - otlp
+      metrics:
+        exporters:
+          - otlp/k8s-metrics
+      logs:
+        exporters:
+          - otlp/k8s-logs
+ports:
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
