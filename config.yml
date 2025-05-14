@@ -1,42 +1,35 @@
+---
 mode: daemonset
-
 image:
   repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
-
-# Required to use the kubeletstats cpu/memory utilization metrics
 clusterRole:
   create: true
   rules:
-    - apiGroups: 
+    - apiGroups:
         - ""
       resources:
         - nodes/proxy
       verbs:
         - get
-
 extraEnvs:
   - name: HONEYCOMB_API_KEY
     valueFrom:
       secretKeyRef:
         name: honeycomb
         key: api-key
-
 presets:
-  # enables the k8sattributesprocessor and adds it to the traces, metrics, and logs pipelines
   kubernetesAttributes:
     enabled: true
     extractAllPodLabels: true
     extractAllPodAnnotations: true
-  # enables the kubeletstatsreceiver and adds it to the metrics pipelines
   kubeletMetrics:
     enabled: true
-
 config:
   receivers:
     jaeger: null
     zipkin: null
     kubeletstats:
-      insecure_skip_verify: true # required as most clusters use self-signed certificates
+      insecure_skip_verify: true
       collection_interval: 30s
       metric_groups:
         - node
@@ -54,42 +47,39 @@ config:
           enabled: true
         k8s.pod.memory_request_utilization:
           enabled: true
-
   processors:
     batch:
-      metadata_keys: 
+      metadata_keys:
         - k8s.pod.uid
       metadata_cardinality_limit: 30
-
   exporters:
     otlp:
-      endpoint: "api.honeycomb.io:443" # US instance
-      #endpoint: "api.eu1.honeycomb.io:443" # EU instance
+      endpoint: api.honeycomb.io:443
       headers:
-        "x-honeycomb-team": "${env:HONEYCOMB_API_KEY}"
+        x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
     otlp/k8s-metrics:
-      endpoint: "api.honeycomb.io:443" # US instance
-      #endpoint: "api.eu1.honeycomb.io:443" # EU instance
+      endpoint: api.honeycomb.io:443
       headers:
-        "x-honeycomb-team": "${env:HONEYCOMB_API_KEY}"
-        "x-honeycomb-dataset": "k8s-metrics"
+        x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
+        x-honeycomb-dataset: k8s-metrics
     otlp/k8s-logs:
-      endpoint: "api.honeycomb.io:443" # US instance
-      #endpoint: "api.eu1.honeycomb.io:443" # EU instance
+      endpoint: api.honeycomb.io:443
       headers:
-        "x-honeycomb-team": "${env:HONEYCOMB_API_KEY}"
-        "x-honeycomb-dataset": "k8s-logs"
-
+        x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
+        x-honeycomb-dataset: k8s-logs
   service:
     pipelines:
       traces:
-        receivers: [otlp]
-        exporters: [otlp]
+        receivers:
+          - otlp
+        exporters:
+          - otlp
       metrics:
-        exporters: [otlp/k8s-metrics]
+        exporters:
+          - otlp/k8s-metrics
       logs:
-        exporters: [otlp/k8s-logs]
-
+        exporters:
+          - otlp/k8s-logs
 ports:
   jaeger-compact:
     enabled: false
